@@ -1,4 +1,6 @@
 import pygame
+import random
+
 pygame.init()
 
 #creating the game window
@@ -22,6 +24,8 @@ grid_colour= (229, 237, 216)
 snake_green=(105, 145, 91)
 snake_head=(75, 115, 72)
 dark_green= (62, 89, 57)
+strawberry_red=(220,91,112)
+white=(255, 255,255)
 
 #fonts
 title_font= pygame.font.Font(None, 52)
@@ -34,6 +38,19 @@ subtitle=subtitle_font.render("a tiny garden adventure", True, snake_green)
 #snake position, meanured in grid cells
 snake= [(20,15), (19,15), (18,15)]
 direction=(1,0)
+
+#spawning strawberries
+def spawn_food(snake):
+    while True:
+        food=( random.randint(0, width//cell_size-1),
+            random.randint(0, height//cell_size-1))
+        if food not in snake:
+            return food
+
+#initialising food and score
+food=spawn_food(snake)
+score=0
+
 
 #keep the game running till the player closes it
 running=True
@@ -63,7 +80,11 @@ while running:
         new_head=(head_col+dx, head_row+dy)
         #putting the new head at the front and removing the last segment so that the snake stays the same length
         snake.insert(0, new_head)
-        snake.pop()
+        if new_head==food:
+            score=score+1
+            food=spawn_food(snake)
+        else:
+            snake.pop()
         last_move=current_time
     #3. drawing the background
     screen.fill(background)
@@ -71,7 +92,10 @@ while running:
         pygame.draw.line(screen, grid_colour, (x,0), (x, height))
     for y in range(0, height, cell_size):
         pygame.draw.line(screen, grid_colour, (0,y), (width, y))
-
+    #drawing the food, score
+    food_x=food[0]*cell_size
+    food_y=food[1]*cell_size
+    pygame.draw.circle(screen, strawberry_red, (food_x+cell_size//2, food_y+cell_size//2), cell_size//2-2)
     #drawing the snake
     for index, (col, row) in enumerate(snake):
         x=col*cell_size
@@ -79,13 +103,13 @@ while running:
         colour=snake_head if index==0 else snake_green
         pygame.draw.rect(screen, colour, (x+1, y+1, cell_size-2, cell_size-2), border_radius=5)
 
-    #drawing title and subtitle
+    #drawing score, title and subtitle
+    score_text=subtitle_font.render(f"Strawberries: {score}", True, dark_green)
+    screen.blit(score_text,(20,15))
     screen.blit(title, title.get_rect(center=(width//2, 65)))
     screen.blit(subtitle, subtitle.get_rect(center=(width//2, 100)))
 
     #4. displaying the frame and regulating the refresh rate
     pygame.display.flip()
     clock.tick(FPS)
-
-
 pygame.quit()
