@@ -29,6 +29,11 @@ dark_green= (62, 89, 57)
 strawberry_red=(220,91,112)
 white=(255, 255,255)
 golden_yellow=(245, 190, 65)
+petal_pink=(242,160, 177)
+flower_yellow=(250, 210, 100)
+grass_accent=(170, 196, 133)
+mud_colour=(151, 119, 91)
+mud_dark=(119, 91,70)
 
 #fonts
 title_font= pygame.font.Font(None, 52)
@@ -43,11 +48,11 @@ snake= [(20,15), (19,15), (18,15)]
 direction=(1,0)
 
 #spawning strawberries
-def spawn_food(snake, score):
+def spawn_food(snake, score, mud_patches):
     while True:
         new_food=( random.randint(0, width//cell_size-1),
             random.randint(0, height//cell_size-1))
-        if new_food not in snake:
+        if new_food not in snake and new_food not in mud_patches:
             is_golden=score>=5 and random.random()<0.20
             return new_food, is_golden
 
@@ -67,8 +72,52 @@ def save_best_score(best_score):
 #initialising food and score
 score=0
 best_score=load_best_score()
-food, golden_food=spawn_food(snake,score)
 sparkles=[]
+#creating fixed decor for the pixel garden
+garden_decor=[]
+used_cells=set()
+
+decoration_types=["flower", "grass", "clover"]
+decoration_colours=[petal_pink, flower_yellow, white, grass_accent]
+
+cols= width//cell_size
+rows= height//cell_size
+
+#four corner regions: (column start, column end, row start, row end)
+corner_regions=[(1,12,7,13), 
+               (cols-12, cols-1, 7, 13), 
+               (1, 12,  rows-8, rows-2),
+               (cols-12, cols-1, rows-8, rows-2)]
+for col_start, col_end, row_start, row_end in corner_regions:
+    for _ in range(18):
+        col=random.randint(col_start, col_end)
+        row= random.randint(row_start, row_end)
+        position=(col, row)
+        if position not in used_cells:
+            used_cells.add(position)
+            kind= random.choice(decoration_types)
+            colour=random.choice(decoration_colours)
+            garden_decor.append((col, row, kind, colour))
+
+mud_patches= set()
+food, golden_food=spawn_food(snake,score,mud_patches)
+while len(mud_patches)<8:
+    col= random.randint(1, width//cell_size-2)
+    row=random.randint(7, height//cell_size-2)
+    position=(col, row)
+    if(position not in snake and position!=food and position not in used_cells):
+        mud_patches.add(position)
+
+while len(garden_decor)<45:
+    col=random.randint(0, width//cell_size-1)
+    row=random.randint(7, height//cell_size-1)
+    position=(col, row)
+
+    if position not in used_cells and position not in snake and position!=food:
+        used_cells.add(position)
+        kind=random.choice(decoration_types)
+        colour=random.choice(decoration_colours)
+        garden_decor.append((col, row, kind, colour))
 
 #keep the game running till the player closes it
 game_started=False
@@ -106,8 +155,8 @@ while running:
             elif game_over and event.key==pygame.K_r:
                 snake=[(20,15), (19,15), (18,15)]
                 direction=(1,0)
-                food, golden_food=spawn_food(snake, score)
                 score=0
+                food, golden_food=spawn_food(snake, score, mud_patches)
                 game_over= False
                 last_move= pygame.time.get_ticks()
             #movement controls during game play
@@ -145,6 +194,8 @@ while running:
             game_over=True
         elif new_head in snake[:-1]:#checking if head hits snake's body
             game_over=True
+        elif new_head in mud_patches:
+            game_over=True
         if not game_over:
             #putting the new head at the front and removing the last segment so that the snake stays the same length
             snake.insert(0, new_head)
@@ -157,12 +208,44 @@ while running:
                 if score>best_score:
                     best_score=score
                     save_best_score(best_score)
-                food, golden_food=spawn_food(snake, score)
+                food, golden_food=spawn_food(snake, score, mud_patches)
             else:
                 snake.pop()
             last_move=current_time
     #3. drawing the background
     screen.fill(background)
+    #drawing tiny garden decorations
+    for col, row in mud_patches:
+        x=col*cell_size
+        y=row*cell_size
+        pygame.draw.rect(screen, mud_colour, (x+3, y+5, 14, 10))
+        pygame.draw.rect(screen, mud_dark, (x+6, y+7, 4,3))
+        pygame.draw.rect(screen, mud_dark, (x+12, y+10, 3, 2))
+    for col, row, kind, colour in garden_decor:
+        position=(col, row)
+        #keeping decor underneath the snake and the food
+        if position in snake or position==food:
+            continue
+        x=col*cell_size
+        y=row*cell_size
+        if kind=="flower":
+            #four square petals and a centre
+            pygame.draw.rect(screen, colour, (x+7, y+3, 5,5))
+            pygame.draw.rect(screen, colour, (x+3, y+7, 5,5))
+            pygame.draw.rect(screen, colour, (x+12, y+7, 5,5))
+            pygame.draw.rect(screen, colour, (x+7, y+12, 5,5))
+            pygame.draw.rect(screen, flower_yellow, (x+8, y+8, 4,4))
+        elif kind=="grass":
+            #three little blades of grass
+            pygame.draw.rect(screen, grass_accent, (x+5, y+9, 3, 7))
+            pygame.draw.rect(screen, grass_accent, (x+9, y+5, 3, 11))
+            pygame.draw.rect(screen, grass_accent, (x+13, y+8, 3, 8))
+        elif kind=="clover":
+            #tiny three leaf clover
+            pygame.draw.rect(screen, snake_green, (x+5, y+5, 5, 5))
+            pygame.draw.rect(screen, snake_green, (x+11, y+5, 5,5))
+            pygame.draw.rect(screen, snake_green, (x+8, y+10, 5, 5))
+            pygame.draw.rect(screen, dark_green, (x+9, y+13, 2, 4))
     for x in range(0, width, cell_size):
         pygame.draw.line(screen, grid_colour, (x,0), (x, height))
     for y in range(0, height, cell_size):
@@ -194,7 +277,6 @@ while running:
     screen.blit(best_text, (20, 40))
     screen.blit(title, title.get_rect(center=(width//2, 65)))
     screen.blit(subtitle, subtitle.get_rect(center=(width//2, 100)))
-
 
     #start screen
     if not game_started:
