@@ -16,8 +16,14 @@ pygame.display.set_caption("Snek in Bloom")
 #updating the game at 60 fps
 clock= pygame.time.Clock()
 FPS=60
-move_delay=140#milliseconds between moves
+normal_move_delay=140#milliseconds between moves
+move_delay=normal_move_delay
 last_move=0
+frost_duration=5000 #milliseconds
+frost_slowdown=1.5
+frost_active=False
+frost_start_time=0
+frost_overlay_colour=(125, 195, 255, 65)
 
 
 #garden colour palette
@@ -34,6 +40,8 @@ flower_yellow=(250, 210, 100)
 grass_accent=(170, 196, 133)
 mud_colour=(151, 119, 91)
 mud_dark=(119, 91,70)
+frostberry_blue=(105, 180, 235)
+ice_highlight=(210,240,255)
 
 #fonts
 title_font= pygame.font.Font(None, 52)
@@ -54,7 +62,8 @@ def spawn_food(snake, score, mud_patches):
             random.randint(0, height//cell_size-1))
         if new_food not in snake and new_food not in mud_patches:
             is_golden=score>=5 and random.random()<0.20
-            return new_food, is_golden
+            is_frost=not is_golden and random.random()<0.15
+            return new_food, is_golden, is_frost
 
 #loading the best score
 def load_best_score():
@@ -100,7 +109,7 @@ for col_start, col_end, row_start, row_end in corner_regions:
             garden_decor.append((col, row, kind, colour))
 
 mud_patches= set()
-food, golden_food=spawn_food(snake,score,mud_patches)
+food, golden_food, frost_food=spawn_food(snake,score,mud_patches)
 while len(mud_patches)<8:
     col= random.randint(1, width//cell_size-2)
     row=random.randint(7, height//cell_size-2)
@@ -123,6 +132,8 @@ while len(garden_decor)<45:
 game_started=False
 game_over=False
 running=True
+frost_food=False
+paused=False
 
 #adding sparkles ✨
 def create_sparkles(position):
@@ -143,6 +154,11 @@ def create_sparkles(position):
 while running:
     #1. handling events
     for event in pygame.event.get():
+        if event.type==pygame.KEYDOWN:
+            if event.key==pygame.K_p and game_started and not game_over:
+                paused= not paused
+                if not paused:
+                    last_move=pygame.time.get_ticks()
         if event.type==pygame.QUIT:
             running=False
         #keyboard controls
@@ -156,8 +172,11 @@ while running:
                 snake=[(20,15), (19,15), (18,15)]
                 direction=(1,0)
                 score=0
-                food, golden_food=spawn_food(snake, score, mud_patches)
+                food, golden_food, frost_food=spawn_food(snake, score, mud_patches)
                 game_over= False
+                frost_active=False
+                frost_start_time=0
+                move_delay=normal_move_delay
                 last_move= pygame.time.get_ticks()
             #movement controls during game play
             new_direction= direction
@@ -174,6 +193,13 @@ while running:
                 direction= new_direction
     #2. moving snake at regular intervals
     current_time=pygame.time.get_ticks()
+    #managing the temporary frostberry effect
+    if frost_active and not paused:
+        if current_time-frost_start_time>=frost_duration:
+            frost_active=False
+            move_delay=normal_move_delay
+        else:
+            move_delay=int(normal_move_delay*frost_slowdown)
 
     #updating sparkle particles
     for particle in sparkles[:]:
@@ -183,7 +209,7 @@ while running:
         if particle["life"]<=0:
             sparkles.remove(particle)
 
-    if game_started and not game_over and current_time-last_move >= move_delay:
+    if game_started and not game_over and not paused and current_time-last_move >= move_delay:
         head_col, head_row=snake[0]
         dx,dy=direction
         new_head=(head_col+dx, head_row+dy)
@@ -200,7 +226,11 @@ while running:
             #putting the new head at the front and removing the last segment so that the snake stays the same length
             snake.insert(0, new_head)
             if new_head==food:
-                if golden_food:
+                if frost_food:
+                    score+=3
+                    frost_active=True
+                    frost_start_time=current_time
+                elif golden_food:
                     score=score+5
                     create_sparkles(new_head)
                 else:
@@ -208,12 +238,17 @@ while running:
                 if score>best_score:
                     best_score=score
                     save_best_score(best_score)
-                food, golden_food=spawn_food(snake, score, mud_patches)
+                food, golden_food, frost_food=spawn_food(snake, score, mud_patches)
             else:
                 snake.pop()
             last_move=current_time
     #3. drawing the background
     screen.fill(background)
+    #blue tint while Frostberry effect is active
+    if frost_active:
+        frost_overlay=pygame.Surface((width, height), pygame.SRCALPHA)
+        frost_overlay.fill(frost_overlay_colour)
+        screen.blit(frost_overlay, (0,0))
     #drawing tiny garden decorations
     for col, row in mud_patches:
         x=col*cell_size
@@ -253,11 +288,16 @@ while running:
     #drawing the food, score
     food_x=food[0]*cell_size
     food_y=food[1]*cell_size
-    if golden_food:
-        food_colour=golden_yellow
+    food_center=(food_x+cell_size//2, food_y+cell_size//2)
+    if frost_food:
+        #icy blue berry
+        pygame.draw.circle(screen, frostberry_blue, food_center, cell_size//2-2)
+        #tiny ice highlight
+        pygame.draw.rect(screen, ice_highlight, (food_x+6, food_y+5, 4,4))
+    elif golden_food:
+        pygame.draw.circle(screen, golden_yellow, food_center, cell_size//2-2)
     else:
-        food_colour=strawberry_red
-    pygame.draw.circle(screen, food_colour, (food_x+cell_size//2, food_y+cell_size//2), cell_size//2-2)
+        pygame.draw.circle(screen, strawberry_red, food_center, cell_size//2-2)
 
     #drawing the particles
     for particle in sparkles:
@@ -275,6 +315,10 @@ while running:
     best_text=subtitle_font.render(f"Best: {best_score}", True, dark_green)
     screen.blit(score_text,(20,15))
     screen.blit(best_text, (20, 40))
+    if frost_active:
+        frost_font=pygame.font.Font(None, 30)
+        frost_text=frost_font.render("FROSTED!", True, frostberry_blue)
+        screen.blit(frost_text, (20, 68))
     screen.blit(title, title.get_rect(center=(width//2, 65)))
     screen.blit(subtitle, subtitle.get_rect(center=(width//2, 100)))
 
@@ -303,6 +347,17 @@ while running:
         screen.blit(game_over_text, game_over_text.get_rect(center= (width//2, height//2-60)))
         screen.blit(score_message, score_message.get_rect(center=(width//2, height//2)))
         screen.blit(restart_message, restart_message.get_rect(center=(width//2, height//2+45)))
+    #pause screen
+    elif paused:
+        overlay=pygame.Surface((width, height), pygame.SRCALPHA)
+        overlay.fill((242, 248, 232, 220))
+        screen.blit(overlay, (0,0))
+        pause_font=pygame.font.Font(None, 58)
+        instruction_font= pygame.font.Font(None, 30)
+        pause_text= pause_font.render("Garden Paused", True, dark_green)
+        resume_text=instruction_font.render("Press P to resume", True, snake_green)
+        screen.blit(pause_text, pause_text.get_rect(center=(width//2, height//2 -20)))
+        screen.blit(resume_text, resume_text.get_rect(center=(width//2, height//2+30)))
 
 
     #4. displaying the frame and regulating the refresh rate
