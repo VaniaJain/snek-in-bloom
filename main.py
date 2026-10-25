@@ -19,12 +19,21 @@ FPS=60
 normal_move_delay=140#milliseconds between moves
 move_delay=normal_move_delay
 last_move=0
+
+#frostberry settings
 frost_duration=5000 #milliseconds
 frost_slowdown=1.5
 frost_active=False
 frost_start_time=0
 frost_overlay_colour=(125, 195, 255, 65)
 
+#harvest frenzy settings
+frenzy_interval=30000
+frenzy_duration=8000
+frenzy_active=False
+frenzy_start_time=0
+last_frenzy_time=0
+frenzy_paused_at=0
 
 #garden colour palette
 background= (242,248, 232)
@@ -61,9 +70,31 @@ def spawn_food(snake, score, mud_patches):
         new_food=( random.randint(0, width//cell_size-1),
             random.randint(0, height//cell_size-1))
         if new_food not in snake and new_food not in mud_patches:
-            is_golden=score>=5 and random.random()<0.20
+            golden_chance=0.60 if frenzy_active else 0.20 #chances of getting a golden strawberry during harvest frenzy increases
+            is_golden=score>=5 and random.random()<golden_chance
             is_frost=not is_golden and random.random()<0.15
             return new_food, is_golden, is_frost
+
+#spawning multiple strawberries incase harvest frenzy is triggered
+def spawn_frenzy_strawberries(snake, mud_patches, food, count):
+    strawberries=[]
+    occupied=set(snake)|set(mud_patches)
+    if food is not None:
+        occupied.add(food)
+    while len(strawberries)<count:
+        position=(random.randint(0,width//cell_size-1), random.randint(0, height//cell_size-1))
+        if position in occupied:
+            continue
+        occupied.add(position)
+        roll=random.random()
+        if roll<0.60:
+            berry_type="golden"
+        elif roll<0.75:
+            berry_type="frost"
+        else:
+            berry_type="normal"
+        strawberries.append({"position":position,"type": berry_type})
+    return strawberries
 
 #loading the best score
 def load_best_score():
@@ -109,12 +140,14 @@ for col_start, col_end, row_start, row_end in corner_regions:
             garden_decor.append((col, row, kind, colour))
 
 mud_patches= set()
+safe_start_cells={(20,15), (19,15), (18,15), (21,15), (22,15), (23,15), (24,15)}
 food, golden_food, frost_food=spawn_food(snake,score,mud_patches)
+frenzy_strawberries=[]
 while len(mud_patches)<8:
     col= random.randint(1, width//cell_size-2)
     row=random.randint(7, height//cell_size-2)
     position=(col, row)
-    if(position not in snake and position!=food and position not in used_cells):
+    if(position not in snake and position not in safe_start_cells and position!=food and position not in used_cells):
         mud_patches.add(position)
 
 while len(garden_decor)<45:
@@ -176,6 +209,10 @@ while running:
                 game_over= False
                 frost_active=False
                 frost_start_time=0
+                frenzy_active=False
+                frenzy_start_time=0
+                last_frenzy_time=pygame.time.get_ticks()
+                frenzy_paused_at=0
                 move_delay=normal_move_delay
                 last_move= pygame.time.get_ticks()
             #movement controls during game play
@@ -193,6 +230,29 @@ while running:
                 direction= new_direction
     #2. moving snake at regular intervals
     current_time=pygame.time.get_ticks()
+    #harvest frenzy timer
+    if game_started and not game_over:
+        if paused:
+            if frenzy_paused_at==0:
+                frenzy_paused_at=current_time
+        else: 
+            if frenzy_paused_at!=0:
+                paused_duration=current_time-frenzy_paused_at
+                if frenzy_active:
+                    frenzy_start_time+=paused_duration
+                last_frenzy_time+=current_time-frenzy_paused_at
+                frenzy_paused_at=0
+            if frenzy_active:
+                 if current_time-frenzy_start_time>=frenzy_duration:
+                     frenzy_active=False
+                     frenzy_strawberries.clear()
+                     last_frenzy_time=current_time
+            elif current_time-last_frenzy_time>=frenzy_interval:
+                 frenzy_active=True
+                 frenzy_start_time=current_time
+                 frenzy_count=random.randint(20,25)
+                 frenzy_strawberries= spawn_frenzy_strawberries(snake, mud_patches, food, frenzy_count)
+
     #managing the temporary frostberry effect
     if frost_active and not paused:
         if current_time-frost_start_time>=frost_duration:
@@ -225,7 +285,27 @@ while running:
         if not game_over:
             #putting the new head at the front and removing the last segment so that the snake stays the same length
             snake.insert(0, new_head)
-            if new_head==food:
+            #checking if the snake collected a harvest frenzy strawberry
+            collected_frenzy_berry=None
+            if frenzy_active:
+                for berry in frenzy_strawberries:
+                    if new_head==berry["position"]:
+                        collected_frenzy_berry=berry
+                        break
+            collected_normal_food=new_head==food
+            if collected_frenzy_berry is not None:
+                berry_type=collected_frenzy_berry["type"]
+                if berry_type=="golden":
+                    score+=5
+                    create_sparkles(new_head)
+                elif berry_type=="frost":
+                    score+=3
+                    frost_active=True
+                    frost_start_time=current_time
+                else:
+                    score+=1
+                frenzy_strawberries.remove(collected_frenzy_berry)
+            elif collected_normal_food:
                 if frost_food:
                     score+=3
                     frost_active=True
@@ -235,13 +315,13 @@ while running:
                     create_sparkles(new_head)
                 else:
                     score=score+1
-                if score>best_score:
-                    best_score=score
-                    save_best_score(best_score)
                 food, golden_food, frost_food=spawn_food(snake, score, mud_patches)
             else:
                 snake.pop()
-            last_move=current_time
+            if score>best_score:
+                best_score=score
+                save_best_score(best_score)
+        last_move=current_time
     #3. drawing the background
     screen.fill(background)
     #blue tint while Frostberry effect is active
@@ -289,7 +369,19 @@ while running:
     food_x=food[0]*cell_size
     food_y=food[1]*cell_size
     food_center=(food_x+cell_size//2, food_y+cell_size//2)
-    if frost_food:
+    if frenzy_active:
+        for berry in frenzy_strawberries:
+            berry_x=berry["position"][0]*cell_size
+            berry_y=berry["position"][1]*cell_size
+            berry_center=(berry_x+cell_size//2, berry_y+cell_size//2)
+            if berry["type"]=="golden":
+                berry_colour=golden_yellow
+            elif berry["type"]=="frost":
+                berry_colour=frostberry_blue
+            else:
+                berry_colour=strawberry_red
+            pygame.draw.circle(screen, berry_colour, berry_center, cell_size//2-2)
+    elif frost_food:
         #icy blue berry
         pygame.draw.circle(screen, frostberry_blue, food_center, cell_size//2-2)
         #tiny ice highlight
@@ -298,7 +390,12 @@ while running:
         pygame.draw.circle(screen, golden_yellow, food_center, cell_size//2-2)
     else:
         pygame.draw.circle(screen, strawberry_red, food_center, cell_size//2-2)
-
+   
+    #harvest frenzy announcement
+        if frenzy_active:
+            frenzy_font=pygame.font.Font(None, 34)
+            frenzy_text=frenzy_font.render("HARVEST FRENZY!", True, golden_yellow)
+            screen.blit(frenzy_text, frenzy_text.get_rect(center=(width//2, 145)))
     #drawing the particles
     for particle in sparkles:
         radius=max(1, particle["life"]//10)
