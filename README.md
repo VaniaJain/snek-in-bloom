@@ -1,5 +1,4 @@
-# snek-in-bloom
-🍓 Snek in Bloom: a tiny garden adventure! 🌷
+# 🍓 Snek in Bloom: a tiny garden adventure! 🌷
 
 What started as a simple Snake game gradually turned into a little pixel-art garden, complete with special strawberries and animations. This project was built using Python and Pygame and I got to learn a lot while bringing it to life.
 
@@ -9,11 +8,11 @@ What started as a simple Snake game gradually turned into a little pixel-art gar
 - Collision detection for walls, the snake's body and mud patches
 - Start, pause, restart and game-over screens
 Special Strawberries:
-🍓Normal Strawberry: The classic collectible worth 1 point
-🍓Golden Strawberry: Worth 5 points, with a sparkle effect
-🍓Frostberry: Worth 3 points and temporarily slows down the snake
-🍓Rainbow Strawberry: A colourful berry worth 10 points
-Harvest frenzy: A timed event that spawns multiple strawberries around the garden, creating a fun opportunity to collect bonus points
+🍓Normal Strawberry: The classic collectible worth 1 point<br>
+🍓Golden Strawberry: Worth 5 points, with a sparkle effect<br>
+🍓Frostberry: Worth 3 points and temporarily slows down the snake<br>
+🍓Rainbow Strawberry: A colourful berry worth 10 points<br>
+Harvest frenzy: A timed event that spawns multiple strawberries around the garden, creating a fun opportunity to collect bonus points<br>
 Animations and visual effects:
 - Animated snake tongue
 - Sparkle effects when collecting special strawberries
