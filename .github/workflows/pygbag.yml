@@ -19,7 +19,7 @@ jobs:
       - name: Install Pygbag and build game
         run: |
           python -m pip install pygbag
-          python -m pygbag --build --disable-sound-format-error 
+          python -m pygbag --build "$GITHUB_WORKSPACE/main.py"
 
       - name: Deploy to GitHub Pages branch gh-pages
         uses: JamesIves/github-pages-deploy-action@v4
