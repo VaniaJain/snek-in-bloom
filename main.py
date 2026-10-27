@@ -677,11 +677,10 @@ async def main():
             pygame.draw.circle(screen, flower_yellow, (580, 385), 3)
 
 
-        # 4. Display the frame and yield control to Pygbag
+         # 4. Display the frame and yield control to Pygbag
         pygame.display.flip()
         clock.tick(FPS)
         await asyncio.sleep(0)
-
     pygame.quit()
 
 
