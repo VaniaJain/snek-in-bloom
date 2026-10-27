@@ -39,7 +39,7 @@ jobs:
       - name: Build browser game
         run: |
           cd /tmp/snek-web
-          python -m pygbag --build main.py
+          python -m pygbag --build .
 
       - name: Verify browser build
         run: |
